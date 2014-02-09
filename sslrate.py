@@ -210,7 +210,7 @@ def process_report(path, strict=False):
     'Protocol: %s, Key exchange: %s, Cipher: %s'%(p_score, kx_score, c_score)
   )
 
-def main(path='outputs/mail.ronniemaglarsen.no:25.xml'):
+def main(path):
   host,score,description = process_report(path)
   print('%s\t%s\t%s'%(host,score,description))
 
