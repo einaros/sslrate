@@ -1,6 +1,6 @@
 ## sslrate
 
-Simple tool which parses sslyze logs and produces parsable output.
+Simple tool which parses sslyze logs and produces scored output.
 
 The scoring is implemented based on Qualys SSL Labs'
 [SSL Server Rating Guide](https://www.ssllabs.com/downloads/SSL_Server_Rating_Guide_2009e.pdf).
