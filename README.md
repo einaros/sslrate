@@ -2,6 +2,9 @@
 
 Simple tool which parses sslyze logs and produces parsable output.
 
+The scoring is implemented based on Qualys SSL Labs'
+[SSL Server Rating Guide](https://www.ssllabs.com/downloads/SSL_Server_Rating_Guide_2009e.pdf).
+
 ## License: MIT
 
 Copyright (c) 2014 Einar Otto Stangvik / indev.no
