@@ -1,6 +1,7 @@
 #!/usr/bin/env python
 from __future__ import print_function
 import tempfile
+import re
 import sys
 import subprocess
 import os
@@ -29,6 +30,10 @@ def log(text):
 def execute(cmd):
   proc = subprocess.Popen(cmd, shell=True, stdin=subprocess.PIPE, stdout=subprocess.PIPE, stderr=subprocess.PIPE)
   return proc.communicate()[0].strip()
+
+def wildcard_match(expression, hostname):
+  expression = '^%s$'%(expression.replace('.', r'\.').replace(r'*\.', r'([^.]*\.)?'))
+  return re.match(expression, hostname, re.I) is not None
 
 ### Cipher utils
 
@@ -164,9 +169,18 @@ class CertificateScorer(Scorer):
     self.tree = tree
     super(CertificateScorer, self).__init__()
   @log('Hostname is valid')
-  def hostname_valid(self):
-    node = self.tree.find('.//hostnameValidation')
-    return node is not None and node.attrib['certificateMatchesServerHostname'] == 'False'
+  def hostname_valid(self, hostname):
+    # Check subject common name
+    node = self.tree.find('.//subject/commonName')
+    if node is not None and wildcard_match(node.text, hostname):
+      return True
+    # Check SAN
+    nodes = self.tree.findall('.//X509v3SubjectAlternativeName/DNS/listEntry')
+    for node in nodes:
+      if wildcard_match(node.text, hostname):
+        return True
+    return False
+    
   @log('Certificate is valid and issued by trusted CA')
   def is_valid(self):
     '''
@@ -185,7 +199,7 @@ class CertificateScorer(Scorer):
 
 ### Process
 
-def process_report(path, strict=False):
+def process_report(path, hostname=None):
   with open(path) as f:
     data = f.read()
   tree = ET.fromstring(data)
@@ -194,13 +208,12 @@ def process_report(path, strict=False):
     return (error.text, None, error.attrib['error'])
   host = tree.find('.//target').attrib['host']
   cert = CertificateScorer(tree)
-  if strict:
-    if not cert.hostname_valid():
-      return (host, 0, 'invalid hostname')
+  if hostname is not None and not cert.hostname_valid(hostname):
+    return (host, 0, 'Hostname does not match certificate')
   if not cert.is_valid():
-      return (host, 0, 'untrusted cert')
+      return (host, 0, 'Certificate is not trusted')
   if cert.is_insecure_signature():
-      return (host, 0, 'insecure signature')
+      return (host, 0, 'Signature is insecure')
   protocol = ProtocolScorer(tree)
   p_score = protocol.score()
   kx = KeyExchangeScorer(tree)
@@ -212,11 +225,11 @@ def process_report(path, strict=False):
     0.3 * p_score +
     0.3 * kx_score + 
     0.4 * c_score,
-    'Protocol: %s, Key exchange: %s, Cipher: %s'%(p_score, kx_score, c_score)
+    'Protocol: %s, key exchange: %s, cipher: %s'%(p_score, kx_score, c_score)
   )
 
-def main(path):
-  host,score,description = process_report(path)
+def main(path, hostname=None):
+  host,score,description = process_report(path, hostname)
   print('%s\t%s\t%s'%(host,score,description))
 
 if __name__ == '__main__':
