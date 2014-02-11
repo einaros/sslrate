@@ -5,7 +5,6 @@ import sys
 import subprocess
 import os
 import logging
-import cipherinfo
 from lxml import etree as ET
 from functools import wraps
 
@@ -42,6 +41,12 @@ class Cipher(object):
     return 'ADH' in self.name 
   def is_export_suite(self):
     return 'EXPORT' in self.name
+  def bitsize(self):
+    if not 'keySize' in self.node.attrib:
+      return None
+    bits = self.node.attrib['keySize']
+    if bits == 'Anon': return 0
+    return int(bits.split(' ')[0])
 
 def get_ciphers(tree, unique=True):
   ciphers = []
@@ -80,8 +85,8 @@ class CipherScorer(Scorer):
   def score(self):
     if len(self.ciphers) == 0:
       raise Exception('No ciphers')
-    weakest = self.describe('Weakest cipher bitsize', min([cipherinfo.ciphers[c.name]['bits'] for c in self.ciphers]))
-    strongest = self.describe('Strongest cipher bitsize', max([cipherinfo.ciphers[c.name]['bits'] for c in self.ciphers]))
+    weakest = self.describe('Weakest cipher bitsize', min([c.bitsize() for c in self.ciphers]))
+    strongest = self.describe('Strongest cipher bitsize', max([c.bitsize() for c in self.ciphers]))
     return (CipherScorer.bit_score(weakest) + CipherScorer.bit_score(strongest)) / 2.0
 
 ### Rate protocol
@@ -101,7 +106,7 @@ class ProtocolScorer(Scorer):
   @log('Total protocol score')
   def score(self):
     if len(self.ciphers) == 0:
-      raise Exception('No ciphers')
+      raise Exception('No ciphers accepted')
     names = set([c.protocol for c in self.ciphers])
     weakest = min([ProtocolScorer.score_protocol_name(c.protocol) for c in self.ciphers])
     strongest = max([ProtocolScorer.score_protocol_name(c.protocol) for c in self.ciphers])
